@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Когда выйдет Артём? — Интерактивный Кликер</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Rubik', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .mono-font {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    @keyframes pulse-gentle {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+    }
+    @keyframes float-up {
+      0% { opacity: 1; transform: translateY(0) scale(1); }
+      100% { opacity: 0; transform: translateY(-70px) scale(1.3); }
+    }
+    @keyframes shake-anim {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
+    .animate-float-text {
+      animation: float-up 0.9s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+    }
+    .shaking {
+      animation: shake-anim 0.35s ease-in-out;
+    }
+    .pulse-glow {
+      animation: pulse-gentle 2s infinite ease-in-out;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(30, 41, 59, 0.5);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-start p-3 sm:p-6 overflow-x-hidden relative selection:bg-amber-500 selection:text-black">
+
+  <div class="fixed inset-0 pointer-events-none overflow-hidden z-0 opacity-20">
+    <div class="absolute -top-32 -left-32 w-96 h-96 bg-indigo-600 rounded-full blur-[128px]"></div>
+    <div class="absolute -bottom-32 -right-32 w-96 h-96 bg-amber-500 rounded-full blur-[128px]"></div>
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-rose-600 rounded-full blur-[140px]"></div>
+  </div>
+
+  <header class="w-full max-w-4xl flex items-center justify-between py-3 mb-3 z-10 border-b border-slate-800/80">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-rose-500 flex items-center justify-center text-xl shadow-lg shadow-amber-500/20">
+        🚪
+      </div>
+      <div>
+        <h1 class="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
+          ХРОНИКИ АРТЁМА
+          <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">v2.4</span>
+        </h1>
+        <p class="text-xs text-slate-400">Миссия: вытащить человека на улицу до второго пришествия</p>
+      </div>
+    </div>
+    
+    <!-- Audio & Reset Controls -->
+    <div class="flex items-center gap-2">
+      <button id="soundToggleBtn" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold border border-slate-700 flex items-center gap-1.5 transition active:scale-95 text-slate-300">
+        <span id="soundIcon">🔊</span> <span class="hidden sm:inline">Звук</span>
+      </button>
+      <button id="resetGameBtn" class="px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 text-xs font-semibold border border-rose-800/60 text-rose-300 transition active:scale-95" title="Начать заново">
+        🔄 Сброс
+      </button>
+    </div>
+  </header>
+
+  <main class="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-12 gap-5 z-10 flex-1 items-start">
+    
+    <!-- LEFT PANEL: Character stage and Clicker Core -->
+    <section class="lg:col-span-7 flex flex-col gap-4">
+      
+      <!-- Top Card: Countdown Display -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-2xl relative overflow-hidden backdrop-blur-sm">
+        <div class="flex justify-between items-center mb-1">
+          <span class="text-xs uppercase tracking-wider font-bold text-slate-400 flex items-center gap-1.5">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            Ожидание выхода:
+          </span>
+          <span id="urgencyBadge" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-sky-950 text-sky-400 border border-sky-800">
+            «Я уже шнуруюсь»
+          </span>
+        </div>
+
+        <!-- Big Countdown Timer -->
+        <div class="text-center py-3">
+          <div id="timerDisplay" class="mono-font text-5xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-rose-400 to-orange-300 tracking-tight drop-shadow-sm">
+            45:00.0
+          </div>
+          <p id="subTimerLabel" class="text-xs text-slate-400 mt-1">До предполагаемого появления у подъезда</p>
+        </div>
+
+        <!-- Progress Bar: How close is he to the door -->
+        <div class="mt-2">
+          <div class="flex justify-between text-xs font-medium text-slate-400 mb-1.5">
+            <span>В кровати (0%)</span>
+            <span id="progressPercent" class="text-amber-400 font-bold">0%</span>
+            <span>Вышел на улицу (100%)</span>
+          </div>
+          <div class="w-full h-3.5 bg-slate-800/90 rounded-full overflow-hidden p-0.5 border border-slate-700/80">
+            <div id="progressBar" class="h-full bg-gradient-to-r from-amber-500 via-rose-500 to-emerald-400 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Card: Interactive Avatar & Status Scene -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center relative overflow-hidden shadow-xl backdrop-blur-sm">
+        <div class="w-full flex justify-between items-center text-xs text-slate-400 mb-2 border-b border-slate-800/80 pb-2">
+          <span class="flex items-center gap-1">📍 Текущая локация:</span>
+          <span id="artyomLocation" class="font-bold text-slate-200">Компьютерное кресло</span>
+        </div>
+
+        <!-- Character Stage Illustration -->
+        <div id="avatarStage" class="w-full py-4 flex flex-col items-center justify-center relative transition-transform">
+          <div id="artyomAvatar" class="text-7xl sm:text-8xl select-none filter drop-shadow-xl transition-all duration-300 transform">
+            🎮
+          </div>
+          <div id="speechBubble" class="mt-3 bg-slate-800/95 border border-slate-700 text-slate-200 text-sm px-4 py-2 rounded-2xl max-w-sm text-center shadow-lg relative">
+            <span id="artyomQuote">«Ща, пацаны, катка в доте доиграется и я сразу оденусь!»</span>
+            <div class="absolute -top-2 left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-800 border-t border-l border-slate-700 rotate-45"></div>
+          </div>
+        </div>
+
+        <div class="w-full mt-4 flex flex-col items-center relative">
+          <!-- Click floating text spawner target -->
+          <div id="clickEffectsZone" class="absolute inset-0 pointer-events-none overflow-visible"></div>
+
+          <button id="hurryBtn" class="group relative w-full sm:w-80 py-4 px-6 rounded-2xl bg-gradient-to-b from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 active:scale-95 text-slate-950 font-black text-lg sm:text-xl shadow-xl shadow-orange-600/30 border-2 border-amber-300/60 transition duration-150 flex items-center justify-center gap-3">
+            <span class="text-2xl group-hover:scale-125 transition-transform">📢</span>
+            <span>ПОТОРОПИТЬ АРТЁМА!</span>
+          </button>
+          
+          <div class="mt-2 text-center">
+            <span class="text-xs text-slate-400">
+              Сила одного ора: <b id="clickPowerText" class="text-amber-400 font-bold">-2.0 сек</b>
+              <span class="mx-1.5">•</span>
+              Пассивный пресс: <b id="dpsPowerText" class="text-emerald-400 font-bold">-0.0 сек/с</b>
+            </span>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT PANEL: Quests, Events & Upgrade Shop -->
+    <section class="lg:col-span-5 flex flex-col gap-4">
+      
+      <!-- Quest Alert Card (Active Challenge Box) -->
+      <div id="questContainer" class="bg-slate-900/90 border border-amber-500/40 rounded-2xl p-4 shadow-xl relative backdrop-blur-sm">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">⚡</span>
+            <h2 class="text-sm font-black uppercase tracking-wider text-amber-300">Срочный Квест!</h2>
+          </div>
+          <span id="questTimeLeft" class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">15с</span>
+        </div>
+
+        <h3 id="questTitle" class="text-base font-bold text-white mb-1">Потерянный носок</h3>
+        <p id="questDesc" class="text-xs text-slate-300 mb-3 leading-relaxed">
+          Артём нашел только один носок и сидит в ступоре посреди комнаты. Помогите ему определиться!
+        </p>
+
+        <!-- Quest Action Area -->
+        <div id="questInteractiveArea" class="flex flex-col gap-2">
+          <!-- Dynamic quest buttons injected here -->
+        </div>
+      </div>
+
+      <!-- Upgrades / Pressure Methods Shop -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl backdrop-blur-sm flex-1 flex flex-col">
+        <div class="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">🛒</span>
+            <h2 class="text-sm font-black uppercase tracking-wider text-slate-200">Арсенал воздействия</h2>
+          </div>
+          <div class="flex items-center gap-1 text-xs text-slate-400">
+            <span>Баланс терпения:</span>
+            <span id="patienceCoins" class="font-bold text-amber-400 font-mono text-sm">0 ⚡</span>
+          </div>
+        </div>
+
+        <!-- Upgrade List -->
+        <div id="upgradeList" class="flex flex-col gap-2.5 max-h-[340px] overflow-y-auto pr-1">
+          <!-- Items injected via JS -->
+        </div>
+      </div>
+
+      <!-- Recent Log / Feed -->
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3 text-xs">
+        <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
+          <span>📜</span> Бортовой журнал ожидания:
+        </div>
+        <div id="activityLog" class="flex flex-col gap-1 max-h-24 overflow-y-auto font-mono text-[11px] text-slate-300 pr-1">
+          <div class="text-slate-500">• Начало операции. Артём клянётся, что уже выходит.</div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- WIN MODAL -->
+  <div id="winModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-emerald-500 rounded-3xl max-w-md w-full p-6 text-center shadow-2xl relative transform transition-all scale-95 animate-gentle">
+      <div class="w-20 h-20 rounded-full bg-emerald-500/20 text-5xl flex items-center justify-center mx-auto mb-4 border border-emerald-500/40">
+        🎉
+      </div>
+      <h2 class="text-2xl font-black text-white mb-2">НЕВЕРОЯТНО! АРТЁМ ВЫШЕЛ!</h2>
+      <p class="text-sm text-slate-300 mb-4 leading-relaxed">
+        Свершилось чудо вселенского масштаба! Он захлопнул входную дверь и уже спускается на лифте (или идет пешком).
+      </p>
+      <div class="bg-slate-800/80 rounded-xl p-3 mb-5 text-xs text-left font-mono space-y-1 text-slate-300 border border-slate-700">
+        <div>⏱ Общее время ожидания: <span id="finalStatsTime" class="text-amber-400 font-bold">--</span></div>
+        <div>👆 Сделано окриков: <span id="finalStatsClicks" class="text-sky-400 font-bold">--</span></div>
+        <div>🏆 Квестов выиграно: <span id="finalStatsQuests" class="text-emerald-400 font-bold">--</span></div>
+      </div>
+      <button id="playAgainBtn" class="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-base shadow-lg shadow-emerald-500/30 transition active:scale-95">
+        Вытащить Артёма ещё раз 🔁
+      </button>
+    </div>
+  </div>
+
+  <!-- CUSTOM NOTIFICATION TOAST -->
+  <div id="toastNotification" class="fixed bottom-5 right-5 z-50 transform translate-y-24 opacity-0 transition-all duration-300 pointer-events-none max-w-sm w-full">
+    <div id="toastBox" class="bg-slate-900/95 border border-slate-700 text-white rounded-xl p-3.5 shadow-2xl flex items-center gap-3 backdrop-blur-md">
+      <span id="toastIcon" class="text-2xl">🔔</span>
+      <div>
+        <h4 id="toastTitle" class="text-xs font-bold uppercase text-slate-300">Событие</h4>
+        <p id="toastMessage" class="text-xs text-slate-100 font-medium"></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* Web Audio Synthesizer (No external sound files required) */
+    const SoundEngine = (function() {
+      let audioCtx = null;
+      let soundEnabled = true;
+
+      function getContext() {
+        if (!audioCtx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            audioCtx = new AudioContext();
+          }
+        }
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        return audioCtx;
+      }
+
+      function playTone(freq, type, duration, gainVal = 0.15) {
+        if (!soundEnabled) return;
+        try {
+          const ctx = getContext();
+          if (!ctx) return;
+          const osc = ctx.createOscillator();
+          const gainNode = ctx.createGain();
+
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, ctx.currentTime);
+
+          gainNode.gain.setValueAtTime(gainVal, ctx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+
+          osc.connect(gainNode);
+          gainNode.connect(ctx.destination);
+
+          osc.start();
+          osc.stop(ctx.currentTime + duration);
+        } catch (e) {
+          console.warn("Audio playback note error", e);
+        }
+      }
+
+      return {
+        toggleSound: () => {
+          soundEnabled = !soundEnabled;
+          return soundEnabled;
+        },
+        isEnabled: () => soundEnabled,
+        clickPop: () => {
+          playTone(520 + Math.random() * 120, 'sine', 0.08, 0.2);
+        },
+        questWin: () => {
+          if (!soundEnabled) return;
+          const ctx = getContext();
+          if (!ctx) return;
+          [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+            setTimeout(() => playTone(freq, 'triangle', 0.2, 0.2), i * 80);
+          });
+        },
+        questFail: () => {
+          if (!soundEnabled) return;
+          [280, 240, 190].forEach((freq, i) => {
+            setTimeout(() => playTone(freq, 'sawtooth', 0.25, 0.18), i * 110);
+          });
+        },
+        upgradeBuy: () => {
+          playTone(700, 'square', 0.08, 0.12);
+          setTimeout(() => playTone(900, 'triangle', 0.15, 0.15), 60);
+        },
+        victoryFanfare: () => {
+          if (!soundEnabled) return;
+          [440, 554, 659, 880, 1108].forEach((freq, i) => {
+            setTimeout(() => playTone(freq, 'square', 0.4, 0.22), i * 120);
+          });
+        }
+      };
+    })();
+
+    const INITIAL_SECONDS = 45 * 60; // 45 minutes default
+    let gameState = {
+      remainingSeconds: INITIAL_SECONDS,
+      maxSeconds: INITIAL_SECONDS,
+      clickPower: 2.0,      // Seconds subtracted per click
+      passivePower: 0.0,    // Seconds subtracted per second
+      patienceCoins: 0,     // Currency earned by clicking & quests
+      totalClicks: 0,
+      wonQuests: 0,
+      lostQuests: 0,
+      startTime: Date.now(),
+      isGameOver: false,
+      activeQuest: null,
+      questCountdown: 0,
+      questTimerInterval: null,
+      upgrades: [
+        {
+          id: 'spamdial',
+          name: 'Спам-звонки на мобилу',
+          icon: '📱',
+          cost: 15,
+          costMultiplier: 1.45,
+          count: 0,
+          desc: '+0.8 сек/клик к силе ора',
+          type: 'click',
+          bonus: 0.8
+        },
+        {
+          id: 'uber',
+          name: 'Такси уже тикает у подъезда',
+          icon: '🚕',
+          cost: 35,
+          costMultiplier: 1.5,
+          count: 0,
+          desc: '+0.5 сек/сек пассивного давления',
+          type: 'passive',
+          bonus: 0.5
+        },
+        {
+          id: 'mom',
+          name: 'Звонок его мамы',
+          icon: '👵',
+          cost: 90,
+          costMultiplier: 1.6,
+          count: 0,
+          desc: '+2.5 сек/клик («Артёмка, шапку надень!»)',
+          type: 'click',
+          bonus: 2.5
+        },
+        {
+          id: 'shawarma',
+          name: 'Шаурма остывает!',
+          icon: '🌯',
+          cost: 200,
+          costMultiplier: 1.55,
+          count: 0,
+          desc: '+2.0 сек/сек мотивации голодом',
+          type: 'passive',
+          bonus: 2.0
+        },
+        {
+          id: 'wifi_cut',
+          name: 'Вырубить рубильник Wi-Fi',
+          icon: '🔌',
+          cost: 500,
+          costMultiplier: 1.7,
+          count: 0,
+          desc: '+6.0 сек/сек (интернета нет, делать нечего)',
+          type: 'passive',
+          bonus: 6.0
+        },
+        {
+          id: 'car_honk',
+          name: 'Клаксон под окном без остановки',
+          icon: '📢',
+          cost: 1200,
+          costMultiplier: 1.8,
+          count: 0,
+          desc: '+12.0 сек/клик и стыдно перед соседями',
+          type: 'click',
+          bonus: 12.0
+        }
+      ]
+    };
+
+    const QUEST_POOL = [
+      {
+        id: 'lost_keys',
+        title: '🔑 Где связка ключей?',
+        desc: 'Артём бегает по квартире и хлопает себя по карманам: «Я точно клал их на комод!»',
+        options: [
+          { text: 'Проверить в кармане куртки', chance: 0.75, winSec: 240, loseSec: 300, winLog: 'Ключи были в кармане! (-4 мин)', loseLog: 'Их там нет, ещё и карман порвал (+5 мин)' },
+          { text: 'Искать в холодильнике (на автомате)', chance: 0.45, winSec: 420, loseSec: 240, winLog: 'Гениально! Ключи рядом с сыром! (-7 мин)', loseLog: 'Артём отвлекся и сожрал бутерброд (+4 мин)' }
+        ]
+      },
+      {
+        id: 'dota_match',
+        title: '🎮 «Ещё одну быструю катку в турбо?»',
+        desc: 'Друзья зовут его в дискорде. Палец Артёма уже занесен над кнопкой «ПОИСК ИГРЫ»!',
+        options: [
+          { text: 'Пригрозить киком из пати', chance: 0.65, winSec: 360, loseSec: 480, winLog: 'Испугался и закрыл клиент! (-6 мин)', loseLog: 'Не поверил и всё равно нажал поиск (+8 мин)' },
+          { text: 'Сказать, что серверы лежат', chance: 0.50, winSec: 540, loseSec: 360, winLog: 'Поверил на слово и выключил комп (-9 мин)', loseLog: 'Полез на Reddit проверять статус (+6 мин)' }
+        ]
+      },
+      {
+        id: 'cat_sleeping',
+        title: '🐱 Кот уснул на коленях',
+        desc: 'Артём сел завязать кроссовки, и на него прилёг толстый барсик. Шевелиться по закону запрещено.',
+        options: [
+          { text: 'Погладить кота и осторожно переложить', chance: 0.55, winSec: 300, loseSec: 500, winLog: 'Кот мурлыкнул и уступил дорогу (-5 мин)', loseLog: 'Кот выпустил когти, Артём застрял (+8.3 мин)' },
+          { text: 'Пошуршать пакетом корма на кухне', chance: 0.80, winSec: 240, loseSec: 240, winLog: 'Кот мгновенно телепортировался на кухню (-4 мин)', loseLog: 'Артём сам захотел есть и пошел на кухню (+4 мин)' }
+        ]
+      },
+      {
+        id: 'weather_panic',
+        title: '🌦 «Что надеть: куртку или худи?»',
+        desc: 'Артём завис перед открытым шкафом, изучая прогноз погоды на четырёх разных сайтах.',
+        options: [
+          { text: 'Крикнуть: «Надень худи, там тепло!»', chance: 0.70, winSec: 300, loseSec: 360, winLog: 'Схватил худи и побежал к выходу (-5 мин)', loseLog: 'Увидел тучу за окном и начал примерять пуховик (+6 мин)' },
+          { text: '«Надень всё сразу слоями»', chance: 0.50, winSec: 400, loseSec: 400, winLog: 'Быстро натянул одежду как капуста (-6.6 мин)', loseLog: 'Вспотел, пока одевался, пошел мыться (+6.6 мин)' }
+        ]
+      },
+      {
+        id: 'audio_message',
+        title: '🎙 Голосовое на 4:28 от друга',
+        desc: 'Пришло длинное голосовое. Артём остановился посреди коридора и приложил телефон к уху.',
+        options: [
+          { text: 'Включить скорость х2', chance: 0.85, winSec: 200, loseSec: 150, winLog: 'Быстро дослушал на x2 и пошел (-3.3 мин)', loseLog: 'Ничего не разобрал и слушает заново (+2.5 мин)' },
+          { text: 'Написать: «Текст кинь, я на улице»', chance: 0.60, winSec: 350, loseSec: 350, winLog: 'Стыд заставил его убрать телефон (-5.8 мин)', loseLog: 'Стал спорить в чате, кто кого ждёт (+5.8 мин)' }
+        ]
+      },
+      {
+        id: 'iron_paranoia',
+        title: '🔥 Синдром невыключенного утюга',
+        desc: 'Он уже держался за ручку двери, но внезапно замер с расширенными зрачками: «А я выключил утюг/чайник/плиту?»',
+        options: [
+          { text: '«Ты вообще сегодня утюг не трогал!»', chance: 0.70, winSec: 320, loseSec: 400, winLog: 'Осознал истину и шагнул в подъезд (-5.3 мин)', loseLog: 'Пошел проверять каждую розетку в доме (+6.6 мин)' },
+          { text: 'Сфотографировать розетку и скинуть', chance: 0.90, winSec: 200, loseSec: 200, winLog: 'Успокоился по фото-доказательству (-3.3 мин)', loseLog: 'Заметил крошку на полу и достал пылесос (+3.3 мин)' }
+        ]
+      }
+    ];
+
+    const timerDisplay = document.getElementById('timerDisplay');
+    const progressBar = document.getElementById('progressBar');
+    const progressPercent = document.getElementById('progressPercent');
+    const urgencyBadge = document.getElementById('urgencyBadge');
+    const artyomLocation = document.getElementById('artyomLocation');
+    const artyomAvatar = document.getElementById('artyomAvatar');
+    const artyomQuote = document.getElementById('artyomQuote');
+    const hurryBtn = document.getElementById('hurryBtn');
+    const clickPowerText = document.getElementById('clickPowerText');
+    const dpsPowerText = document.getElementById('dpsPowerText');
+    const patienceCoinsEl = document.getElementById('patienceCoins');
+    const upgradeList = document.getElementById('upgradeList');
+    const activityLog = document.getElementById('activityLog');
+    const clickEffectsZone = document.getElementById('clickEffectsZone');
+    const soundToggleBtn = document.getElementById('soundToggleBtn');
+    const soundIcon = document.getElementById('soundIcon');
+    const resetGameBtn = document.getElementById('resetGameBtn');
+    const questContainer = document.getElementById('questContainer');
+    const questTitle = document.getElementById('questTitle');
+    const questDesc = document.getElementById('questDesc');
+    const questTimeLeft = document.getElementById('questTimeLeft');
+    const questInteractiveArea = document.getElementById('questInteractiveArea');
+    const winModal = document.getElementById('winModal');
+    const playAgainBtn = document.getElementById('playAgainBtn');
+    const finalStatsTime = document.getElementById('finalStatsTime');
+    const finalStatsClicks = document.getElementById('finalStatsClicks');
+    const finalStatsQuests = document.getElementById('finalStatsQuests');
+    const toastNotification = document.getElementById('toastNotification');
+    const toastTitle = document.getElementById('toastTitle');
+    const toastMessage = document.getElementById('toastMessage');
+    const toastIcon = document.getElementById('toastIcon');
+
+    function formatTime(totalSeconds) {
+      if (totalSeconds <= 0) return '00:00.0';
+      const mins = Math.floor(totalSeconds / 60);
+      const secs = Math.floor(totalSeconds % 60);
+      const tenths = Math.floor((totalSeconds % 1) * 10);
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${tenths}`;
+    }
+
+    function showToast(title, msg, icon = '🔔', isBad = false) {
+      toastTitle.textContent = title;
+      toastMessage.textContent = msg;
+      toastIcon.textContent = icon;
+      
+      const toastBox = document.getElementById('toastBox');
+      if (isBad) {
+        toastBox.className = "bg-rose-950/95 border border-rose-600 text-white rounded-xl p-3.5 shadow-2xl flex items-center gap-3 backdrop-blur-md";
+      } else {
+        toastBox.className = "bg-slate-900/95 border border-slate-700 text-white rounded-xl p-3.5 shadow-2xl flex items-center gap-3 backdrop-blur-md";
+      }
+
+      toastNotification.classList.remove('translate-y-24', 'opacity-0');
+      toastNotification.classList.add('translate-y-0', 'opacity-100');
+
+      clearTimeout(toastNotification._timer);
+      toastNotification._timer = setTimeout(() => {
+        toastNotification.classList.add('translate-y-24', 'opacity-0');
+        toastNotification.classList.remove('translate-y-0', 'opacity-100');
+      }, 3500);
+    }
+
+    function addLogEntry(text, type = 'normal') {
+      const entry = document.createElement('div');
+      const now = new Date();
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+      
+      let colorClass = 'text-slate-300';
+      if (type === 'good') colorClass = 'text-emerald-400 font-semibold';
+      if (type === 'bad') colorClass = 'text-rose-400 font-semibold';
+      if (type === 'system') colorClass = 'text-amber-400';
+
+      entry.className = colorClass;
+      entry.innerHTML = `<span class="text-slate-500">[${timeStr}]</span> ${text}`;
+      activityLog.prepend(entry);
+
+      // Keep last 40 logs
+      while (activityLog.children.length > 40) {
+        activityLog.removeChild(activityLog.lastChild);
+      }
+    }
+
+    function updateCharacterStage(progress) {
+      // Progress 0% to 100%
+      if (progress < 25) {
+        artyomAvatar.textContent = '🎮';
+        artyomLocation.textContent = 'Компьютерное кресло (катка в разгаре)';
+        artyomQuote.textContent = '«Ща, пацаны, катка в доте доиграется и я сразу оденусь!»';
+        urgencyBadge.textContent = '«Я уже шнуруюсь»';
+        urgencyBadge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-sky-950 text-sky-400 border border-sky-800';
+      } else if (progress < 50) {
+        artyomAvatar.textContent = '🧦';
+        artyomLocation.textContent = 'Посреди комнаты (ищет второй носок)';
+        artyomQuote.textContent = '«Куда мама дела мои черные штаны?! Я же их сюда кидал!»';
+        urgencyBadge.textContent = '«Ищу второй носок»';
+        urgencyBadge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-950 text-amber-400 border border-amber-800';
+      } else if (progress < 75) {
+        artyomAvatar.textContent = '🧥';
+        artyomLocation.textContent = 'Прихожая у зеркала (примеряет куртку)';
+        artyomQuote.textContent = '«Один ботинок уже на мне. Точно выхожу, вызывайте лифт!»';
+        urgencyBadge.textContent = '«Один ботинок надет»';
+        urgencyBadge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-orange-950 text-orange-400 border border-orange-800';
+      } else if (progress < 100) {
+        artyomAvatar.textContent = '🚪';
+        artyomLocation.textContent = 'У входной двери (проверяет ключи)';
+        artyomQuote.textContent = '«Так, телефон, ключи, наушники... Блин, где наушники?!»';
+        urgencyBadge.textContent = '«Рука на дверной ручке»';
+        urgencyBadge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 animate-pulse';
+      } else {
+        artyomAvatar.textContent = '🏃‍♂️';
+        artyomLocation.textContent = 'НА УЛИЦЕ У ПОДЪЕЗДА!';
+        artyomQuote.textContent = '«Я вышел! Где все? Почему вы опаздываете?!»';
+        urgencyBadge.textContent = 'ВЫШЕЛ ИЗ ДОМА!';
+        urgencyBadge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500 text-black font-black border border-emerald-400';
+      }
+    }
+
+    function updateDisplay() {
+      timerDisplay.textContent = formatTime(gameState.remainingSeconds);
+      
+      const progress = Math.max(0, Math.min(100, ((gameState.maxSeconds - gameState.remainingSeconds) / gameState.maxSeconds) * 100));
+      progressBar.style.width = `${progress.toFixed(1)}%`;
+      progressPercent.textContent = `${progress.toFixed(0)}%`;
+
+      clickPowerText.textContent = `-${gameState.clickPower.toFixed(1)} сек`;
+      dpsPowerText.textContent = `-${gameState.passivePower.toFixed(1)} сек/с`;
+      patienceCoinsEl.textContent = `${Math.floor(gameState.patienceCoins)} ⚡`;
+
+      updateCharacterStage(progress);
+      renderUpgrades();
+
+      if (gameState.remainingSeconds <= 0 && !gameState.isGameOver) {
+        triggerVictory();
+      }
+    }
+
+    function spawnFloatingText(text, x, y, isBonus = false, isBad = false) {
+      const el = document.createElement('div');
+      el.className = `absolute pointer-events-none font-black text-sm select-none z-30 animate-float-text ${
+        isBad ? 'text-rose-500 drop-shadow-md' : isBonus ? 'text-emerald-400 drop-shadow-md text-base' : 'text-amber-300 drop-shadow'
+      }`;
+      el.textContent = text;
+      
+      // Calculate position relative to container
+      const rect = clickEffectsZone.getBoundingClientRect();
+      const localX = (x || rect.width / 2) - rect.left + (Math.random() * 40 - 20);
+      const localY = (y || rect.height / 2) - rect.top;
+
+      el.style.left = `${Math.max(10, Math.min(rect.width - 60, localX))}px`;
+      el.style.top = `${Math.max(0, localY - 20)}px`;
+
+      clickEffectsZone.appendChild(el);
+      setTimeout(() => el.remove(), 900);
+    }
+
+    function handleHurryClick(e) {
+      if (gameState.isGameOver) return;
+
+      SoundEngine.clickPop();
+      gameState.totalClicks++;
+
+      // Decrease time
+      gameState.remainingSeconds = Math.max(0, gameState.remainingSeconds - gameState.clickPower);
+      
+      // Earn coins/patience points
+      const gainedCoins = 1 + Math.floor(gameState.clickPower * 0.4);
+      gameState.patienceCoins += gainedCoins;
+
+      // Visual feedback
+      spawnFloatingText(`-${gameState.clickPower.toFixed(1)}s`, e ? e.clientX : null, e ? e.clientY : null);
+
+      // Bounce avatar briefly
+      artyomAvatar.classList.add('scale-110');
+      setTimeout(() => artyomAvatar.classList.remove('scale-110'), 120);
+
+      // Random humorous remark in speech bubble
+      if (Math.random() < 0.12) {
+        const hurriedQuotes = [
+          '«Да одеваюсь я, одеваюсь, чё ты спамишь?!»',
+          '«Лифт на 9 этаже застрял, я тут при чем?!»',
+          '«Шнурок развязался, погоди секунду!»',
+          '«Телефон на 3% стоит на зарядке, ща 5% будет и пойду!»',
+          '«Кто так настойчиво в домофон звонит?!»'
+        ];
+        artyomQuote.textContent = hurriedQuotes[Math.floor(Math.random() * hurriedQuotes.length)];
+      }
+
+      updateDisplay();
+    }
+
+    hurryBtn.addEventListener('click', handleHurryClick);
+
+    function renderUpgrades() {
+      upgradeList.innerHTML = '';
+
+      gameState.upgrades.forEach(upg => {
+        const canAfford = gameState.patienceCoins >= upg.cost;
+        const itemEl = document.createElement('div');
+        itemEl.className = `p-2.5 rounded-xl border transition flex items-center justify-between gap-2 ${
+          canAfford 
+            ? 'bg-slate-800/80 border-slate-700 hover:border-amber-500/50 hover:bg-slate-800 cursor-pointer' 
+            : 'bg-slate-900/60 border-slate-800/80 opacity-60'
+        }`;
+
+        itemEl.innerHTML = `
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-9 h-9 rounded-lg bg-slate-950 flex items-center justify-center text-lg shrink-0 border border-slate-800">
+              ${upg.icon}
+            </div>
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="font-bold text-xs text-white truncate">${upg.name}</span>
+                <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-700 text-slate-300">x${upg.count}</span>
+              </div>
+              <div class="text-[11px] text-slate-400 truncate">${upg.desc}</div>
+            </div>
+          </div>
+          <button class="shrink-0 px-2.5 py-1.5 rounded-lg font-mono text-xs font-bold transition flex items-center gap-1 ${
+            canAfford 
+              ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm active:scale-95' 
+              : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+          }">
+            <span>${Math.round(upg.cost)}</span>
+            <span>⚡</span>
+          </button>
+        `;
+
+        if (canAfford) {
+          itemEl.addEventListener('click', () => buyUpgrade(upg.id));
+        }
+
+        upgradeList.appendChild(itemEl);
+      });
+    }
+
+    function buyUpgrade(upgradeId) {
+      const upg = gameState.upgrades.find(u => u.id === upgradeId);
+      if (!upg || gameState.patienceCoins < upg.cost) return;
+
+      gameState.patienceCoins -= upg.cost;
+      upg.count++;
+      upg.cost = Math.round(upg.cost * upg.costMultiplier);
+
+      if (upg.type === 'click') {
+        gameState.clickPower += upg.bonus;
+      } else if (upg.type === 'passive') {
+        gameState.passivePower += upg.bonus;
+      }
+
+      SoundEngine.upgradeBuy();
+      addLogEntry(`Куплено улучшение: «${upg.name}» (Ур. ${upg.count})`, 'system');
+      updateDisplay();
+    }
+
+    function startNewQuest() {
+      if (gameState.isGameOver || gameState.activeQuest) return;
+
+      const randomQuest = QUEST_POOL[Math.floor(Math.random() * QUEST_POOL.length)];
+      gameState.activeQuest = randomQuest;
+      gameState.questCountdown = 16; // 16 seconds to solve
+
+      questTitle.textContent = randomQuest.title;
+      questDesc.textContent = randomQuest.desc;
+      questTimeLeft.textContent = `${gameState.questCountdown}с`;
+      questContainer.classList.add('pulse-glow', 'border-amber-400');
+      
+      showToast('Новый квест!', randomQuest.title, '⚡');
+
+      // Build options
+      questInteractiveArea.innerHTML = '';
+      randomQuest.options.forEach((opt, idx) => {
+        const btn = document.createElement('button');
+        btn.className = "w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-amber-500 hover:text-slate-950 border border-slate-700 hover:border-amber-400 text-xs font-semibold text-slate-200 transition text-left flex items-center justify-between group active:scale-[0.98]";
+        btn.innerHTML = `
+          <span>${opt.text}</span>
+          <span class="text-[10px] font-mono text-slate-400 group-hover:text-slate-900 ml-2 shrink-0">Шанс: ${Math.round(opt.chance * 100)}%</span>
+        `;
+        btn.addEventListener('click', () => resolveQuestChoice(idx));
+        questInteractiveArea.appendChild(btn);
+      });
+
+      // Countdown timer for quest
+      if (gameState.questTimerInterval) clearInterval(gameState.questTimerInterval);
+      gameState.questTimerInterval = setInterval(() => {
+        gameState.questCountdown--;
+        questTimeLeft.textContent = `${gameState.questCountdown}с`;
+
+        if (gameState.questCountdown <= 0) {
+          failQuestByTimeout();
+        }
+      }, 1000);
+    }
+
+    function resolveQuestChoice(choiceIdx) {
+      if (!gameState.activeQuest) return;
+      clearInterval(gameState.questTimerInterval);
+
+      const quest = gameState.activeQuest;
+      const opt = quest.options[choiceIdx];
+      const roll = Math.random();
+      const isSuccess = roll <= opt.chance;
+
+      if (isSuccess) {
+        // Quest WON: Time decreases!
+        gameState.wonQuests++;
+        gameState.remainingSeconds = Math.max(0, gameState.remainingSeconds - opt.winSec);
+        gameState.patienceCoins += 25; // Quest bonus coins
+        SoundEngine.questWin();
+
+        addLogEntry(`Квест выигран: ${opt.winLog}`, 'good');
+        showToast('Успех квеста!', opt.winLog, '🎉', false);
+        spawnFloatingText(`-${opt.winSec}с!`, null, null, true, false);
+      } else {
+        // Quest LOST: Time INCREASES!
+        gameState.lostQuests++;
+        gameState.remainingSeconds += opt.loseSec;
+        SoundEngine.questFail();
+
+        // Shake stage
+        document.getElementById('avatarStage').classList.add('shaking');
+        setTimeout(() => document.getElementById('avatarStage').classList.remove('shaking'), 400);
+
+        addLogEntry(`Провал квеста: ${opt.loseLog}`, 'bad');
+        showToast('Артём задерживается!', opt.loseLog, '🤦‍♂️', true);
+        spawnFloatingText(`+${opt.loseSec}с`, null, null, false, true);
+      }
+
+      cleanupQuest();
+      updateDisplay();
+    }
+
+    function failQuestByTimeout() {
+      if (!gameState.activeQuest) return;
+      clearInterval(gameState.questTimerInterval);
+
+      const penalty = 180; // +3 minutes
+      gameState.lostQuests++;
+      gameState.remainingSeconds += penalty;
+      SoundEngine.questFail();
+
+      addLogEntry(`Квест проигнорирован! Артём завис в раздумьях (+3 мин)`, 'bad');
+      showToast('Время вышло!', 'Артём начал залипать в телефоне (+3 мин)', '⏳', true);
+      spawnFloatingText(`+${penalty}с`, null, null, false, true);
+
+      cleanupQuest();
+      updateDisplay();
+    }
+
+    function cleanupQuest() {
+      gameState.activeQuest = null;
+      if (gameState.questTimerInterval) clearInterval(gameState.questTimerInterval);
+      questContainer.classList.remove('pulse-glow', 'border-amber-400');
+      questTimeLeft.textContent = 'Ожидание...';
+      questTitle.textContent = 'Артём временно спокоен';
+      questDesc.textContent = 'Продолжайте торопить его кликами или ждите следующую нештатную ситуацию!';
+      questInteractiveArea.innerHTML = `
+        <div class="text-xs text-slate-500 italic text-center py-2">
+          Следующая дилемма возникнет через несколько секунд...
+        </div>
+      `;
+    }
+
+    function triggerVictory() {
+      gameState.isGameOver = true;
+      gameState.remainingSeconds = 0;
+      SoundEngine.victoryFanfare();
+
+      const totalElapsed = Math.round((Date.now() - gameState.startTime) / 1000);
+      const m = Math.floor(totalElapsed / 60);
+      const s = totalElapsed % 60;
+      finalStatsTime.textContent = `${m} мин ${s} сек реального времени`;
+      finalStatsClicks.textContent = `${gameState.totalClicks} раз`;
+      finalStatsQuests.textContent = `${gameState.wonQuests} побед / ${gameState.lostQuests} фейлов`;
+
+      winModal.classList.remove('hidden');
+
+      // Confetti burst
+      if (window.confetti) {
+        confetti({
+          particleCount: 120,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+        setTimeout(() => {
+          confetti({
+            particleCount: 90,
+            angle: 60,
+            spread: 55,
+            origin: { x: 0 }
+          });
+          confetti({
+            particleCount: 90,
+            angle: 120,
+            spread: 55,
+            origin: { x: 1 }
+          });
+        }, 400);
+      }
+    }
+
+    function resetGame() {
+      clearInterval(gameState.questTimerInterval);
+      gameState.remainingSeconds = INITIAL_SECONDS;
+      gameState.maxSeconds = INITIAL_SECONDS;
+      gameState.clickPower = 2.0;
+      gameState.passivePower = 0.0;
+      gameState.patienceCoins = 0;
+      gameState.totalClicks = 0;
+      gameState.wonQuests = 0;
+      gameState.lostQuests = 0;
+      gameState.startTime = Date.now();
+      gameState.isGameOver = false;
+      gameState.activeQuest = null;
+
+      gameState.upgrades.forEach(upg => {
+        upg.count = 0;
+        if (upg.id === 'spamdial') upg.cost = 15;
+        if (upg.id === 'uber') upg.cost = 35;
+        if (upg.id === 'mom') upg.cost = 90;
+        if (upg.id === 'shawarma') upg.cost = 200;
+        if (upg.id === 'wifi_cut') upg.cost = 500;
+        if (upg.id === 'car_honk') upg.cost = 1200;
+      });
+
+      winModal.classList.add('hidden');
+      cleanupQuest();
+      addLogEntry('Игра сброшена. Артём снова в компьютерном кресле!', 'system');
+      updateDisplay();
+    }
+
+    resetGameBtn.addEventListener('click', resetGame);
+    playAgainBtn.addEventListener('click', resetGame);
+
+    soundToggleBtn.addEventListener('click', () => {
+      const isEnabled = SoundEngine.toggleSound();
+      soundIcon.textContent = isEnabled ? '🔊' : '🔇';
+      soundToggleBtn.classList.toggle('text-rose-400', !isEnabled);
+    });
+
+    let lastTick = performance.now();
+    let questSpawnCooldown = 8; // Quest every ~8-14 seconds
+
+    function gameLoop(currentTime) {
+      const dt = (currentTime - lastTick) / 1000;
+      lastTick = currentTime;
+
+      if (!gameState.isGameOver) {
+        // Passive DPS reduction
+        if (gameState.passivePower > 0) {
+          gameState.remainingSeconds = Math.max(0, gameState.remainingSeconds - (gameState.passivePower * dt));
+          gameState.patienceCoins += (gameState.passivePower * 0.25 * dt);
+        }
+
+        // Quest spawner check
+        if (!gameState.activeQuest) {
+          questSpawnCooldown -= dt;
+          if (questSpawnCooldown <= 0) {
+            startNewQuest();
+            questSpawnCooldown = 12 + Math.random() * 8; // Next quest in 12-20 sec
+          }
+        }
+
+        updateDisplay();
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Initialize first quest prompt and loop
+    cleanupQuest();
+    updateDisplay();
+    requestAnimationFrame((t) => {
+      lastTick = t;
+      gameLoop(t);
+    });
+
+    // First quest automatically starts in 4 seconds to introduce gameplay
+    setTimeout(() => {
+      if (!gameState.activeQuest && !gameState.isGameOver) {
+        startNewQuest();
+      }
+    }, 4000);
+  </script>
+</body>
+</html>
